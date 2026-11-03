@@ -1,0 +1,218 @@
+--=====================================================================
+--  ███  N M O D S   P R O X Y  ███   v1.1  ·  ANTI-BAN
+--  Target : FREE FIRE MAX ZONE  (99610146753435)
+--  Executor: Delta
+--=====================================================================
+
+if getgenv and getgenv().NMODS_PROXY then
+    pcall(function() getgenv().NMODS_PROXY.Destroy() end)
+    task.wait(0.2)
+end
+
+local Players      = game:GetService("Players")
+local RS           = game:GetService("ReplicatedStorage")
+local RunService   = game:GetService("RunService")
+local UIS          = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Lighting     = game:GetService("Lighting")
+local VirtualUser  = game:GetService("VirtualUser")
+
+local LP = Players.LocalPlayer
+while not LP do task.wait(0.1); LP = Players.LocalPlayer end
+
+local PlayerGui
+repeat PlayerGui = LP:FindFirstChildOfClass("PlayerGui"); task.wait(0.1) until PlayerGui
+
+local unpackFn      = table.unpack or unpack
+local newcclosureFn = newcclosure or function(f) return f end
+local TI            = TweenInfo.new
+
+--=====================================================================
+--  ESTADO
+--=====================================================================
+local State = {
+    stealth    = true,   -- MODO SIGILOSO (on por defecto)
+    useFuncs   = false,  -- usar RemoteFunctions (mas lag, mas ruido)
+    fly        = false,
+    creepyKill = false,
+    invis      = false,
+    magic      = false,
+    autoShoot  = false,
+    esp        = false,
+    names      = false,
+    aimbot     = false,
+    bright     = false,
+    infJump    = false,
+    antiFall   = false,
+    antiAfk    = false,
+    fpsBoost   = false,
+    autoRespawn= false,
+    speed      = 65,
+    walkSpeed  = 16,
+    jumpPower  = 50,
+    fps        = 0,
+}
+
+local Connections = {}
+local Highlights  = {}
+local spawnedAt   = os.clock()
+local lastShot    = 0
+local lastBurst   = 0
+local calibrating = false
+local calibrated  = false
+
+local function bind(sig, fn)
+    local c = sig:Connect(fn); table.insert(Connections, c); return c
+end
+
+--=====================================================================
+--  UI HELPERS
+--=====================================================================
+local THEME = {
+    bg      = Color3.fromRGB(12, 12, 16),
+    panel   = Color3.fromRGB(20, 20, 26),
+    row     = Color3.fromRGB(27, 27, 35),
+    accent  = Color3.fromRGB(255, 106, 0),
+    accent2 = Color3.fromRGB(255, 0, 90),
+    text    = Color3.fromRGB(240, 240, 246),
+    dim     = Color3.fromRGB(145, 145, 160),
+    on      = Color3.fromRGB(0, 214, 140),
+    off     = Color3.fromRGB(58, 58, 70),
+}
+
+local function corner(i, r)
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, r); c.Parent = i; return c
+end
+local function stroke(i, col, th, tr)
+    local s = Instance.new("UIStroke"); s.Color = col; s.Thickness = th or 1
+    s.Transparency = tr or 0; s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    s.Parent = i; return s
+end
+local function gradient(i, c1, c2, rot)
+    local g = Instance.new("UIGradient")
+    g.Color = ColorSequence.new(c1, c2); g.Rotation = rot or 0; g.Parent = i; return g
+end
+local function padding(i, n)
+    local p = Instance.new("UIPadding")
+    p.PaddingLeft = UDim.new(0, n); p.PaddingRight = UDim.new(0, n)
+    p.PaddingTop = UDim.new(0, n);  p.PaddingBottom = UDim.new(0, n)
+    p.Parent = i; return p
+end
+local function newGui(name, order)
+    local g = Instance.new("ScreenGui")
+    g.Name = name; g.ResetOnSpawn = false; g.IgnoreGuiInset = true
+    g.DisplayOrder = order; g.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    g.Parent = PlayerGui
+    return g
+end
+
+--=====================================================================
+--  PANTALLA DE CARGA
+--=====================================================================
+local loadGui = newGui("NMODS_Loading", 500)
+
+local loadBg = Instance.new("Frame")
+loadBg.Size = UDim2.fromScale(1, 1)
+loadBg.BackgroundColor3 = Color3.fromRGB(6, 6, 9)
+loadBg.BorderSizePixel = 0
+loadBg.Parent = loadGui
+
+local loadGlow = Instance.new("Frame")
+loadGlow.Size = UDim2.fromScale(1, 1)
+loadGlow.BackgroundColor3 = THEME.accent
+loadGlow.BackgroundTransparency = 0.9
+loadGlow.BorderSizePixel = 0
+loadGlow.Parent = loadBg
+gradient(loadGlow, THEME.accent, THEME.accent2, 45)
+
+local loadBox = Instance.new("Frame")
+loadBox.AnchorPoint = Vector2.new(0.5, 0.5)
+loadBox.Position = UDim2.fromScale(0.5, 0.5)
+loadBox.Size = UDim2.fromOffset(300, 190)
+loadBox.BackgroundTransparency = 1
+loadBox.Parent = loadBg
+
+local logo = Instance.new("TextLabel")
+logo.Size = UDim2.new(1, 0, 0, 44)
+logo.BackgroundTransparency = 1
+logo.Font = Enum.Font.GothamBlack
+logo.Text = "NMODS PROXY"
+logo.TextSize = 34
+logo.TextColor3 = Color3.new(1, 1, 1)
+logo.Parent = loadBox
+local logoGrad = gradient(logo, THEME.accent, THEME.accent2, 0)
+
+local sub = Instance.new("TextLabel")
+sub.Position = UDim2.fromOffset(0, 46)
+sub.Size = UDim2.new(1, 0, 0, 18)
+sub.BackgroundTransparency = 1
+sub.Font = Enum.Font.GothamMedium
+sub.Text = "FREE FIRE MAX ZONE  ·  v1.1 ANTI-BAN"
+sub.TextSize = 12
+sub.TextColor3 = THEME.dim
+sub.Parent = loadBox
+
+local barBg = Instance.new("Frame")
+barBg.Position = UDim2.fromOffset(0, 96)
+barBg.Size = UDim2.new(1, 0, 0, 8)
+barBg.BackgroundColor3 = Color3.fromRGB(32, 32, 40)
+barBg.BorderSizePixel = 0
+barBg.Parent = loadBox
+corner(barBg, 4)
+
+local barFill = Instance.new("Frame")
+barFill.Size = UDim2.new(0, 0, 1, 0)
+barFill.BackgroundColor3 = THEME.accent
+barFill.BorderSizePixel = 0
+barFill.Parent = barBg
+corner(barFill, 4)
+gradient(barFill, THEME.accent, THEME.accent2, 0)
+
+local status = Instance.new("TextLabel")
+status.Position = UDim2.fromOffset(0, 114)
+status.Size = UDim2.new(1, 0, 0, 18)
+status.BackgroundTransparency = 1
+status.Font = Enum.Font.Gotham
+status.Text = "Iniciando..."
+status.TextSize = 12
+status.TextColor3 = THEME.dim
+status.TextXAlignment = Enum.TextXAlignment.Left
+status.Parent = loadBox
+
+local pct = Instance.new("TextLabel")
+pct.Position = UDim2.fromOffset(0, 114)
+pct.Size = UDim2.new(1, 0, 0, 18)
+pct.BackgroundTransparency = 1
+pct.Font = Enum.Font.GothamBold
+pct.Text = "0%"
+pct.TextSize = 12
+pct.TextColor3 = THEME.accent
+pct.TextXAlignment = Enum.TextXAlignment.Right
+pct.Parent = loadBox
+
+local tasks = {
+    "Filtrando remotes del juego...",
+    "Descartando ruido (tienda, chat, spawn)...",
+    "Preparando cola de despacho...",
+    "Aplicando límites anti-ban...",
+    "Parcheando respawn...",
+    "NMODS PROXY listo.",
+}
+
+local function setProgress(p, txt)
+    TweenService:Create(barFill, TI(0.25), { Size = UDim2.fromScale(p, 1) }):Play()
+    pct.Text = math.floor(p * 100) .. "%"
+    if txt then status.Text = txt end
+end
+
+task.spawn(function()
+    while loadGui.Parent do
+        logoGrad.Rotation = (logoGrad.Rotation + 2) % 360
+        task.wait(0.03)
+    end
+end)
+
+--=====================================================================
+--  DESCUBRIMIENTO DE REMOTES (con lista negra)
+--=====================================================================
+local KEYWORDS =
